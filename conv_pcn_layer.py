@@ -1,6 +1,6 @@
 import tensorflow as tf
 from typing import Literal
-class Conv1DPCNLayer:
+class Conv2DPCNLayer:
     is_clamped : tf.Variable # bool
     fix_wts : tf.Variable # bool
     num_units : int
@@ -8,12 +8,12 @@ class Conv1DPCNLayer:
     next_layers: list
     wts : tf.Variable # tf.Tensor
     output_shape : tuple
-    kernel_size: int
+    kernel_size: tuple[int, int]
     activation : str
     state : tf.Variable # tf.Tensor
     learning_rate:float
 
-    def __init__(self, num_units:int, kernel_size:int, learning_rate:float, activation:Literal['linear', 'relu']='linear'):
+    def __init__(self, num_units:int, kernel_size:tuple[int, int], learning_rate:float, activation:Literal['linear', 'relu']='linear'):
         self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(False, trainable=False)
         self.num_units = num_units
@@ -28,20 +28,61 @@ class Conv1DPCNLayer:
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
-        self.wts = tf.Variable(tf.random.normal((self.kernel_size, input_shape[-1], self.num_units), 
-                                                stddev=self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size*input_shape[-1]))), trainable=False)
+        self.wts = tf.Variable(tf.random.normal((*self.kernel_size, input_shape[-1], self.num_units), 
+                                                stddev=self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size[0]*self.kernel_size[1]*input_shape[-1]))), trainable=False)
     
     def predict_prev(self):
-        return tf.nn.conv1d_transpose(self.state, self.wts, padding='SAME', strides=1, output_shape=(*self.output_shape[:2], self.wts.shape[1]))
+        return tf.nn.conv2d_transpose(self.state, self.wts, padding='VALID', strides=1, output_shape=(self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-1]))
     
     def predict_next(self):
         return self.state
     
+    def pred_loss_d_input(self, x:tf.Tensor):
+        if self.activation == 'relu':
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=1, padding='VALID', output_shape=x.shape)
+        else:
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x)), self.wts, strides=1, padding='VALID', output_shape=x.shape)
+
     def d_gelu(self, x:tf.Tensor):
         return 0.5*(1+tf.math.erf(x/tf.sqrt(2.))) + x/tf.sqrt(2*tf.acos(-1.))*tf.exp(-tf.square(x)/2)
     
+    # 1/2*(next-pred)^2
+    # => 
     def update_state(self):
-        pass #TBD
+        if not self.is_clamped:
+            average_d_pred = tf.zeros_like(self.state)
+            average_d_state = tf.zeros_like(self.state)
+            num_next_layers = 0
+            for layer in self.next_layers:
+                if layer.is_clamped:
+                    continue
+                num_next_layers += 1
+                # print(layer)
+                state = self.predict_next()
+                pred_state = layer.predict_prev()
+                if layer.activation == 'relu':
+                    state = tf.nn.relu(state)
+                    pred_state = tf.nn.relu(pred_state)
+                average_d_pred += layer.pred_loss_d_input(self.predict_next())
+                average_d_state += (state - pred_state)
+            if num_next_layers!=0:
+                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2*num_next_layers)))
+            # pred prev layer & pred from prev layer
+            if self.prev_layer is not None:
+                d_pred = tf.zeros_like(self.state)
+                d_state = tf.zeros_like(self.state)
+                layer = self.prev_layer
+                if self.activation == 'relu':
+                    d_pred += tf.nn.conv2d(
+                        -(1+int(layer.is_clamped))*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
+                        self.wts, strides=1, padding="VALID")
+                else:
+                    d_pred += tf.nn.conv2d(
+                        -(1+int(layer.is_clamped))*(layer.predict_next() - self.predict_prev()),
+                        self.wts, strides=1, padding="VALID")
+                if not layer.is_clamped:
+                    d_state += (self.predict_next() - self(layer.predict_next()))
+                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2))
 
     def update_wts(self):
         pass #TBD
@@ -55,23 +96,20 @@ class Conv1DPCNLayer:
 
     def init_wts_b(self):
         self.wts = None
-
-    def __call__(self, x : tf.Tensor):
-        if len(x.shape)==2:
-            x = x[:, :, None]
-
-        if len(x.shape)!=3:
-            raise ValueError("Input shape of wrong dimensions")
-
+    
+    def net_in(self, x:tf.Tensor):
         if self.wts is None:
             self.init_params(x.shape)
 
-        net_out = tf.nn.conv1d(x, self.wts, padding='SAME', stride=1)
+        return tf.nn.conv2d(x, self.wts, padding='VALID', strides=1)
+
+    def __call__(self, x : tf.Tensor):
+        net_in = self.net_in(x)
 
         if self.activation == 'relu':
-            net_act = tf.nn.relu(net_out)
+            net_act = tf.nn.relu(net_in)
         else:
-            net_act = net_out
+            net_act = net_in
 
         if self.state is None:
             self.state = tf.Variable(net_act, trainable=False)
