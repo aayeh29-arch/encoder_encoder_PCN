@@ -32,7 +32,7 @@ class Conv2DPCNLayer:
                                                 stddev=self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size[0]*self.kernel_size[1]*input_shape[-1]))), trainable=False)
     
     def predict_prev(self):
-        return tf.nn.conv2d_transpose(self.state, self.wts, padding='VALID', strides=1, output_shape=(self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-1]))
+        return tf.nn.conv2d_transpose(self.state, self.wts, padding='VALID', strides=1, output_shape=(self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2]))
     
     def predict_next(self):
         return self.state
@@ -84,8 +84,30 @@ class Conv2DPCNLayer:
                     d_state += (self.predict_next() - self(layer.predict_next()))
                 self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2))
 
+    # 1/2*(gelu(conv(prev.state, self.wts))-self.state)^2
+    # => (gelu(conv(prev.state, self.wts))-self.state) * d_gelu(conv(prev.state, self.wts)) * conv2dbackprop
+    #          (B, H2, W2, C2)                             (B, H2, W2, C2)                    (Fx, Fy, C1, C2)
+    # 1/2*(self.predict_prev - prev.state)^2
+    # => (self.predict_prev - prev.state) * 
     def update_wts(self):
-        pass #TBD
+        d_state = tf.zeros_like(self.wts)
+        d_pred = tf.zeros_like(self.wts)
+        if not self.fix_wts_b and self.prev_layer is not None:
+            if not self.prev_layer.is_clamped:
+                pred = self(self.prev_layer.predict_next())
+                eps = pred - self.predict_next()
+                if self.activation == 'relu':
+                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps*self.d_gelu(pred), strides=[1, 1, 1, 1], padding="VALID")
+                else:
+                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps, strides=[1, 1, 1, 1], padding="VALID")
+            if not self.is_clamped:
+                pred = self.predict_prev()
+                if self.activation == 'relu':
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.relu(pred)-tf.nn.relu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding="VALID")
+                else:
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding="VALID")
+            if not self.is_clamped or not self.prev_layer.is_clamped:
+                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/(int(not self.is_clamped)+int(not self.prev_layer.is_clamped)))
 
     def update_b(self):
         pass # there is no bias
