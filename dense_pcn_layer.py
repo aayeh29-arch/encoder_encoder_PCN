@@ -12,12 +12,12 @@ class DensePCNLayer:
     activation : str
     state : tf.Variable # tf.Tensor
     learning_rate:float
-    def __init__(self, num_units:int, learning_rate:float, activation:Literal['linear', 'relu']='linear', ):
+    def __init__(self, num_units:int, learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None):
         self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(False, trainable=False)
         self.num_units = num_units
-        self.prev_layer = None
-        self.next_layers = []
+        self.prev_layer = prev_layer
+        self.next_layers = [] if next_layers is None else next_layers
         self.wts = None
         self.b = None
         self.output_shape = None
@@ -33,7 +33,7 @@ class DensePCNLayer:
 
 
     def predict_prev(self):
-        return (self.state - self.b) @ tf.transpose(self.wts)
+        return (self.state - self.b) @ tf.linalg.matrix_transpose(self.wts)
     
     def predict_next(self):
         return self.state
@@ -43,9 +43,9 @@ class DensePCNLayer:
     
     def pred_loss_d_input(self, x:tf.Tensor):
         if self.activation == 'relu':
-            return -(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)) @ tf.transpose(self.wts)
+            return -(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)) @ tf.linalg.matrix_transpose(self.wts)
         else:
-            return -(self.predict_next()-self(x)) @ tf.transpose(self.wts)
+            return -(self.predict_next()-self(x)) @ tf.linalg.matrix_transpose(self.wts)
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2
@@ -100,15 +100,19 @@ class DensePCNLayer:
         if not self.fix_wts_b and self.prev_layer is not None:
             if not self.prev_layer.is_clamped:
                 if self.activation == 'relu':
-                    d_state += tf.transpose(self.prev_layer.predict_next()) @ (
+                    x = tf.linalg.matrix_transpose(self.prev_layer.predict_next()) @ (
                         -(self.predict_next() - self(self.prev_layer.predict_next()))*(self.d_gelu(self.net_in(self.prev_layer.predict_next()))))
+                    d_state += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
                 else:
-                    d_state += tf.transpose(self.prev_layer.predict_next()) @ -(self.predict_next() - self(self.prev_layer.predict_next()))
+                    x = tf.linalg.matrix_transpose(self.prev_layer.predict_next()) @ -(self.predict_next() - self(self.prev_layer.predict_next()))
+                    d_state += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
             if not self.is_clamped:
                 if self.activation == 'relu':
-                    d_pred += tf.transpose(tf.nn.relu(self.prev_layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ -(self.predict_next()-self.b)
+                    x = tf.linalg.matrix_transpose(tf.nn.relu(self.prev_layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ -(self.predict_next()-self.b)
+                    d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
                 else:
-                    d_pred += tf.transpose(self.prev_layer.predict_next() - self.predict_prev()) @ -(self.predict_next()-self.b)
+                    x = tf.linalg.matrix_transpose(self.prev_layer.predict_next() - self.predict_prev()) @ -(self.predict_next()-self.b)
+                    d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/(int(not self.is_clamped)+int(not self.prev_layer.is_clamped)))
 
@@ -117,7 +121,7 @@ class DensePCNLayer:
     # ((state - act(x@wts+b))*act'(x@wts+b))
     # (B, N) (B, M)
     # 1/2*(state - pred)^2 = 1/2*( self.prev_layer.predict_next - self.predict_prev)^2
-    # self.predict_prev  = (self.state-self.b) @ tf.transpose(self.wts)
+    # self.predict_prev  = (self.state-self.b) @ tf.linalg.matrix_transpose(self.wts)
     # ( self.prev_layer.predict_next - self.predict_prev) @ (self.state-self.b)
     # (B, N) (B, M)
     def update_b(self):
@@ -126,14 +130,18 @@ class DensePCNLayer:
         if not self.fix_wts_b and self.prev_layer is not None:
             if not self.prev_layer.is_clamped:
                 if self.activation == 'relu':
-                    d_state += tf.reduce_mean((-(self.predict_next() - self(self.prev_layer.predict_next()))*(self.d_gelu(self.net_in(self.prev_layer.predict_next())))), axis=0)
+                    x = (-(self.predict_next() - self(self.prev_layer.predict_next()))*(self.d_gelu(self.net_in(self.prev_layer.predict_next()))))
+                    d_state += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
                 else:
-                    d_state += tf.reduce_mean(-(self.predict_next() - self(self.prev_layer.predict_next())), axis=0)
+                    x = -(self.predict_next() - self(self.prev_layer.predict_next()))
+                    d_state += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
             if not self.is_clamped:
                 if self.activation == 'relu':
-                    d_pred += tf.reduce_mean((tf.nn.relu(self.prev_layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ self.wts, axis=0)
+                    x = tf.reduce_mean((tf.nn.relu(self.prev_layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ self.wts, axis=0)
+                    d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
                 else:
-                    d_pred += tf.reduce_mean((self.prev_layer.predict_next() - self.predict_prev()) @ self.wts, axis=0)
+                    x = tf.reduce_mean((self.prev_layer.predict_next() - self.predict_prev()) @ self.wts, axis=0)
+                    d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 self.b.assign_sub(self.learning_rate*(d_state+d_pred)/(int(not self.is_clamped)+int(not self.prev_layer.is_clamped)))
 

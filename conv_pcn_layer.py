@@ -2,7 +2,7 @@ import tensorflow as tf
 from typing import Literal
 class Conv2DPCNLayer:
     is_clamped : tf.Variable # bool
-    fix_wts : tf.Variable # bool
+    fix_wts_b : tf.Variable # bool
     num_units : int
     prev_layer: object
     next_layers: list
@@ -13,12 +13,12 @@ class Conv2DPCNLayer:
     state : tf.Variable # tf.Tensor
     learning_rate:float
 
-    def __init__(self, num_units:int, kernel_size:tuple[int, int], learning_rate:float, activation:Literal['linear', 'relu']='linear'):
+    def __init__(self, num_units:int, kernel_size:tuple[int, int], learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None):
         self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(False, trainable=False)
         self.num_units = num_units
-        self.prev_layer = None
-        self.next_layers = []
+        self.prev_layer = prev_layer
+        self.next_layers = [] if next_layers is None else next_layers
         self.wts = None
         self.output_shape = None
         self.state = None
