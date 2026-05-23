@@ -1,8 +1,8 @@
 import tensorflow as tf
 from dense_pcn_layer import DensePCNLayer
 from conv_pcn_layer import Conv2DPCNLayer
+import numpy as np
 
-# TBD
 class AttentionPCNLayer:
     is_clamped : tf.Variable # bool
     fix_wts_b : tf.Variable # bool
@@ -12,7 +12,7 @@ class AttentionPCNLayer:
     d_model: int
     num_heads : int
     mask : tf.Variable
-    def __init__(self, d_model, num_heads, prev_layer:object, next_layers:list=None):
+    def __init__(self, d_model, num_heads, prev_layer:object, next_layers:list=None, mask:tf.Tensor=None):
         self.is_clamped = tf.Variable(True, trainable=False)
         self.fix_wts_b = tf.Variable(True, trainable=False)
         self.prev_layer = prev_layer
@@ -20,18 +20,18 @@ class AttentionPCNLayer:
         self.output_shape = None
         self.d_model = d_model
         self.num_heads = num_heads
-        self.mask=None
+        self.mask=mask
         
     
     def __call__(self, x:tf.Tensor, mask:tf.Tensor=None):
         if mask is not None:
             self.mask=mask
         q, k, v = tf.split(tf.transpose(tf.reshape(x, (*x.shape[:2], self.num_heads, 3*(self.d_model//self.num_heads))), perm=[0, 2, 1, 3]), 3, -1)
-        attention = tf.nn.softmax(( q @ tf.linalg.matrix_transpose(k) ) / (self.d_model//self.num_heads), axis=-1)
+        attention = ( q @ tf.linalg.matrix_transpose(k) ) / (self.d_model//self.num_heads)
         if self.mask is not None:
-            pass #TBD
+            attention += self.mask
         self.output_shape=(*x.shape[:2], self.d_model)
-        return tf.reshape(tf.transpose(attention @ v, perm = [0, 2, 1, 3]), self.output_shape)
+        return tf.reshape(tf.transpose(tf.nn.softmax(attention, axis=-1) @ v, perm = [0, 2, 1, 3]), self.output_shape)
         
     def predict_next(self):
         return self(self.prev_layer.predict_next())
@@ -117,7 +117,7 @@ class TransformerPCNLayer:
     learning_rate:float
     prev_layer : object
     next_layers : list
-    def __init__(self, num_layers:int, input_dim:int, num_heads:int, learning_rate:float, prev_layer:object, next_layers:list=None):
+    def __init__(self, num_layers:int, input_dim:int, num_heads:int, learning_rate:float, prev_layer:object, next_layers:list=None, mask:tf.Tensor=None):
         self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(False, trainable=False)
         self.prev_layer = prev_layer
@@ -127,7 +127,9 @@ class TransformerPCNLayer:
         self.num_heads = num_heads
         self.num_layers = num_layers
         self.kqv_layer = DensePCNLayer(3*input_dim, learning_rate, 'linear', prev_layer)
-        self.attention_layer = AttentionPCNLayer(input_dim, num_heads, self.kqv_layer)
+        if mask is not None:
+            mask = (mask[:, :, None]+mask[:, :, None])[:, None, :, :]
+        self.attention_layer = AttentionPCNLayer(input_dim, num_heads, self.kqv_layer, mask=mask)
         self.attention_dense_layer = DensePCNLayer(input_dim, learning_rate, 'linear', self.attention_layer)
         self.attention_addnorm_layer = AddNormalizePCNLayer(learning_rate, [self.prev_layer, self.attention_dense_layer])
         self.feed_forward_layers = []
@@ -170,5 +172,31 @@ class TransformerPCNLayer:
             output = self.feed_forward_layers[i](output)
         return self.feed_forward_addnorm_layer(attention_norm, output)
 
-           
+class PositionalEncodingLayer:
+    is_clamped : tf.Variable # bool
+    fix_wts_b : tf.Variable # bool
+    prev_layer : DensePCNLayer
+    next_layers: list
+    output_shape : tuple
+    d_model: int
+    def __init__(self, d_model:int, prev_layer:object, next_layers:list=None):
+        self.is_clamped = tf.Variable(True, trainable=False)
+        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.prev_layer = prev_layer
+        self.next_layers = [] if next_layers is None else next_layers
+        self.output_shape = None
+        self.d_model = d_model
+
+    def __call__(self, x:tf.Tensor):
+        angle_rads = np.arange(x.shape[1])[:, None] / np.power(10000, (2 * (np.arange(self.d_model)[None, :] // 2)) / np.float32(self.d_model))
     
+        angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    
+        angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+
+        pos_encoding = angle_rads[None]
+    
+        return tf.cast(pos_encoding, dtype=tf.float32) + x
+    
+    def predict_next(self):
+        return self(self.prev_layer.predict_next())
