@@ -65,5 +65,5 @@ The model optimizes a combined reconstruction and consistency loss:
 
 ## Author
 
-Anthony Yeh
+Anthony Yeh,
 Colby College
