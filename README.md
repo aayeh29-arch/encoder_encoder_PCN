@@ -1,4 +1,4 @@
-# Bidirectional Predictive Coding for Multimodal Image-Text Conversion
+# Bidirectional Predictive Coding for Multimodal Image-Text Conversion (Ongoing research)
 
 This repository implements a multimodal learning framework based on **bidirectional predictive coding**, designed to learn joint representations between images and text. The goal is to explore how structured latent spaces can support consistent cross-modal generation and inference.
 
