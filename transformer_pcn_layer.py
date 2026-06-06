@@ -1,6 +1,5 @@
 import tensorflow as tf
 from dense_pcn_layer import DensePCNLayer
-from conv_pcn_layer import Conv2DPCNLayer
 import numpy as np
 
 class AttentionPCNLayer:
@@ -150,7 +149,7 @@ class TransformerPCNLayer:
         self.feed_forward_addnorm_layer.next_layers = [] if next_layers is None else next_layers
 
     def get_layers(self):
-        return self.kqv_layer, self.attention_dense_layer, self.attention_addnorm_layer, *self.feed_forward_layers, self.feed_forward_addnorm_layer
+        return [self.kqv_layer, self.attention_dense_layer, self.attention_addnorm_layer, *self.feed_forward_layers, self.feed_forward_addnorm_layer]
     
     def set_next_layers(self, next_layers:list):
         self.next_layers = next_layers
@@ -180,7 +179,7 @@ class PositionalEncodingLayer:
     output_shape : tuple
     d_model: int
     def __init__(self, d_model:int, prev_layer:object, next_layers:list=None):
-        self.is_clamped = tf.Variable(True, trainable=False)
+        self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(True, trainable=False)
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
@@ -200,3 +199,18 @@ class PositionalEncodingLayer:
     
     def predict_next(self):
         return self(self.prev_layer.predict_next())
+    
+    # assume 1 next layer
+    def predict_prev(self):
+        angle_rads = np.arange(self.next_layers[0].predict_prev().shape[1])[:, None] / np.power(10000, (2 * (np.arange(self.d_model)[None, :] // 2)) / np.float32(self.d_model))
+    
+        angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    
+        angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+
+        pos_encoding = angle_rads[None]
+
+        return self.next_layers[0].predict_prev() - tf.cast(pos_encoding, dtype=tf.float32)
+    
+    def pred_loss_d_input(self):
+        return 1.

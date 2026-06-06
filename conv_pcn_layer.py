@@ -152,3 +152,26 @@ class Conv2DPCNLayer:
 
     def set_fix_wts_b(self, fix_wts_b:bool):
         self.fix_wts_b.assign(fix_wts_b)
+
+
+class MaxPool2DPCNLayer:
+    is_clamped : tf.Variable # bool
+    fix_wts_b : tf.Variable # bool
+    prev_layer : object
+    next_layers : list
+    kernel_size : tuple[int, int]
+    def __init__(self, kernel_size: tuple[int, int],  prev_layer:object, next_layers:list=None):
+        self.is_clamped = tf.Variable(True, trainable=False)
+        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.prev_layer = prev_layer
+        self.next_layers = [] if next_layers is None else next_layers
+        self.kernel_size = kernel_size
+        self.output_shape = None
+
+    def __call__(self, x:tf.Tensor):
+        out = tf.nn.max_pool2d(x, self.kernel_size, 1, 'VALID')
+        self.output_shape = out.shape
+        return out
+    
+    def predict_next(self):
+        return self(self.prev_layer.predict_next())
