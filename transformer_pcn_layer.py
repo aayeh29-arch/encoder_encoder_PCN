@@ -19,12 +19,15 @@ class AttentionPCNLayer:
         self.output_shape = None
         self.d_model = d_model
         self.num_heads = num_heads
-        self.mask=mask
+        if mask is not None:
+            self.mask = (mask[:, :, None]+mask[:, :, None])[:, None, :, :]
+        else:
+            self.mask=None
         
     
     def __call__(self, x:tf.Tensor, mask:tf.Tensor=None):
         if mask is not None:
-            self.mask=mask
+            self.mask = (mask[:, :, None]+mask[:, :, None])[:, None, :, :]
         q, k, v = tf.split(tf.transpose(tf.reshape(x, (*x.shape[:2], self.num_heads, 3*(self.d_model//self.num_heads))), perm=[0, 2, 1, 3]), 3, -1)
         attention = ( q @ tf.linalg.matrix_transpose(k) ) / (self.d_model//self.num_heads)
         if self.mask is not None:
@@ -116,6 +119,7 @@ class TransformerPCNLayer:
     learning_rate:float
     prev_layer : object
     next_layers : list
+    mask : tf.Tensor
     def __init__(self, num_layers:int, input_dim:int, num_heads:int, learning_rate:float, prev_layer:object, next_layers:list=None, mask:tf.Tensor=None):
         self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(False, trainable=False)
@@ -126,9 +130,8 @@ class TransformerPCNLayer:
         self.num_heads = num_heads
         self.num_layers = num_layers
         self.kqv_layer = DensePCNLayer(3*input_dim, learning_rate, 'linear', prev_layer)
-        if mask is not None:
-            mask = (mask[:, :, None]+mask[:, :, None])[:, None, :, :]
-        self.attention_layer = AttentionPCNLayer(input_dim, num_heads, self.kqv_layer, mask=mask)
+        self.mask = mask
+        self.attention_layer = AttentionPCNLayer(input_dim, num_heads, self.kqv_layer)
         self.attention_dense_layer = DensePCNLayer(input_dim, learning_rate, 'linear', self.attention_layer)
         self.attention_addnorm_layer = AddNormalizePCNLayer(learning_rate, [self.prev_layer, self.attention_dense_layer])
         self.feed_forward_layers = []
@@ -161,9 +164,11 @@ class TransformerPCNLayer:
     def predict_prev(self):
         return self.kqv_layer.predict_prev()
     
-    def __call__(self, x:tf.Tensor):
+    def __call__(self, x:tf.Tensor, mask:tf.Tensor = None):
+        if mask is not None:
+            self.mask = mask
         kqv = self.kqv_layer(x)
-        attention = self.attention_layer(kqv)
+        attention = self.attention_layer(kqv, mask=self.mask)
         attention = self.attention_dense_layer(attention)
         attention_norm = self.attention_addnorm_layer(x, attention)
         output = attention_norm
