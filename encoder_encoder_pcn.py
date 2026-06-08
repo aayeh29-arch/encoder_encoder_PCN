@@ -158,47 +158,77 @@ class EncoderEncoderPCN:
 
         flatten1 = FlattenPCNLayer(conv9)
         conv9.next_layers = [flatten1]
-        dense1 = DensePCNLayer(307200, learning_rate, 'relu', flatten1)
-        flatten1.next_layers = [dense1]
+        inter1 = DensePCNLayer(100, learning_rate, 'linear', flatten1)
+        flatten1.next_layers = [inter1]
+        self.trainable_layers.append(inter1)
+        dense1 = DensePCNLayer(307200, learning_rate, 'relu', inter1)
+        inter1.next_layers = [dense1]
         self.trainable_layers.append(dense1)
-        dense2 = DensePCNLayer(102400, learning_rate, 'linear', dense1)
-        dense1.next_layers = [dense2]
+        inter2 = DensePCNLayer(100, learning_rate, 'linear', dense1)
+        dense1.next_layers = [inter2]
+        self.trainable_layers.append(inter2)
+        dense2 = DensePCNLayer(102400, learning_rate, 'linear', inter2)
+        inter2.next_layers = [dense2]
         self.trainable_layers.append(dense2)
 
         flatten3 = FlattenPCNLayer(conv8)
         conv8.next_layers.append(flatten3)
-        dense5 = DensePCNLayer(582542, learning_rate, 'relu', flatten3)
-        flatten3.next_layers = [dense5]
+        inter3 = DensePCNLayer(100, learning_rate, 'linear', flatten3)
+        flatten3.next_layers = [inter3]
+        self.trainable_layers.append(inter3)
+        dense5 = DensePCNLayer(582542, learning_rate, 'relu', inter3)
+        inter3.next_layers = [dense5]
         self.trainable_layers.append(dense5)
-        dense6 = DensePCNLayer(161817, learning_rate, 'linear', dense5)
-        dense5.next_layers = [dense6]
+        inter4 = DensePCNLayer(100, learning_rate, 'linear', dense5)
+        dense5.next_layers = [inter4]
+        self.trainable_layers.append(inter4)
+        dense6 = DensePCNLayer(161817, learning_rate, 'linear', inter4)
+        inter4.next_layers = [dense6]
         self.trainable_layers.append(dense6)
 
         flatten5 = FlattenPCNLayer(conv6)
         conv6.next_layers.append(flatten5)
-        dense9 = DensePCNLayer(1279723, learning_rate, 'relu', flatten5)
-        flatten5.next_layers = [dense9]
+        inter5 = DensePCNLayer(100, learning_rate, 'linear', flatten5)
+        flatten5.next_layers = [inter5]
+        self.trainable_layers.append(inter5)
+        dense9 = DensePCNLayer(1279723, learning_rate, 'relu', inter5)
+        inter5.next_layers = [dense9]
         self.trainable_layers.append(dense9)
-        dense10 = DensePCNLayer(345871, learning_rate, 'linear', dense9)
-        dense9.next_layers = [dense10]
+        inter6 = DensePCNLayer(100, learning_rate, 'linear', dense9)
+        dense9.next_layers = [inter6]
+        self.trainable_layers.append(inter6)
+        dense10 = DensePCNLayer(345871, learning_rate, 'linear', inter6)
+        inter6.next_layers = [dense10]
         self.trainable_layers.append(dense10)
 
         flatten7 = FlattenPCNLayer(conv4)
         conv4.next_layers.append(flatten7)
-        dense13 = DensePCNLayer(2654815, learning_rate, 'relu', flatten7)
-        flatten7.next_layers = [dense13]
+        inter7 = DensePCNLayer(100, learning_rate, 'linear', flatten7)
+        flatten7.next_layers = [inter7]
+        self.trainable_layers.append(inter7)
+        dense13 = DensePCNLayer(2654815, learning_rate, 'relu', inter7)
+        inter7.next_layers = [dense13]
         self.trainable_layers.append(dense13)
-        dense14 = DensePCNLayer(702332, learning_rate, 'linear', dense13)
-        dense13.next_layers = [dense14]
+        inter8 = DensePCNLayer(100, learning_rate, 'linear', dense13)
+        dense13.next_layers = [inter8]
+        self.trainable_layers.append(inter8)
+        dense14 = DensePCNLayer(702332, learning_rate, 'linear', inter8)
+        inter8.next_layers = [dense14]
         self.trainable_layers.append(dense14)
 
         flatten9 = FlattenPCNLayer(conv2)
         conv2.next_layers.append(flatten9)
-        dense17 = DensePCNLayer(5433667, learning_rate, 'relu', flatten9)
-        flatten9.next_layers = [dense17]
+        inter9 = DensePCNLayer(100, learning_rate, 'linear', flatten9)
+        flatten9.next_layers = [inter9]
+        self.trainable_layers.append(inter9)
+        dense17 = DensePCNLayer(5433667, learning_rate, 'relu', inter9)
+        inter9.next_layers = [dense17]
         self.trainable_layers.append(dense17)
-        dense18 = DensePCNLayer(1429912, learning_rate, 'linear', dense17)
-        dense17.next_layers = [dense18]
+        inter10 = DensePCNLayer(100, learning_rate, 'linear', dense17)
+        dense17.next_layers = [inter10]
+        self.trainable_layers.append(inter10)
+        dense18 = DensePCNLayer(1429912, learning_rate, 'linear', inter10)
+        inter10.next_layers = [dense18]
         self.trainable_layers.append(dense18)
 
 
@@ -318,47 +348,77 @@ class EncoderEncoderPCN:
 
         flatten2 = FlattenPCNLayer(self.trainable_layers[-1])
         self.trainable_layers[-1].next_layers = [flatten2]
-        dense3 = DensePCNLayer(36864, learning_rate, 'relu', flatten2)
-        flatten2.next_layers = [dense3]
+        inter11 = DensePCNLayer(100, learning_rate, 'linear', flatten2)
+        flatten2.next_layers = [inter11]
+        self.trainable_layers.append(inter11)
+        dense3 = DensePCNLayer(36864, learning_rate, 'relu', inter11)
+        inter11.next_layers = [dense3]
         self.trainable_layers.append(dense3)
-        dense4 = DensePCNLayer(102400, learning_rate, 'relu', dense3, share_state_layer=dense2)
-        dense3.next_layers = [dense4]
+        inter12 = DensePCNLayer(100, learning_rate, 'linear', dense3)
+        dense3.next_layers = [inter12]
+        self.trainable_layers.append(inter12)
+        dense4 = DensePCNLayer(102400, learning_rate, 'relu', inter12, share_state_layer=dense2)
+        inter12.next_layers = [dense4]
         self.trainable_layers.append(dense4)
 
         flatten4 = FlattenPCNLayer(transformer13_layers[-1])
         transformer13_layers[-1].next_layers.append(flatten4)
-        dense7 = DensePCNLayer(44237, learning_rate, 'relu', flatten4)
-        flatten4.next_layers = [dense7]
+        inter13 = DensePCNLayer(100, learning_rate, 'linear', flatten4)
+        flatten4.next_layers = [inter13]
+        self.trainable_layers.append(inter13)
+        dense7 = DensePCNLayer(44237, learning_rate, 'relu', inter13)
+        inter13.next_layers = [dense7]
         self.trainable_layers.append(dense7)
-        dense8 = DensePCNLayer(161817, learning_rate, 'linear', dense7, share_state_layer=dense6)
-        dense7.next_layers = [dense8]
+        inter14 = DensePCNLayer(100, learning_rate, 'linear', dense7)
+        dense7.next_layers = [inter14]
+        self.trainable_layers.append(inter14)
+        dense8 = DensePCNLayer(161817, learning_rate, 'linear', inter14, share_state_layer=dense6)
+        inter14.next_layers = [dense8]
         self.trainable_layers.append(dense8)
 
         flatten6 = FlattenPCNLayer(transformer9_layers[-1])
         transformer9_layers[-1].next_layers.append(flatten6)
-        dense11 = DensePCNLayer(90931, learning_rate, 'relu', flatten6)
-        flatten6.next_layers = [dense11]
+        inter15 = DensePCNLayer(100, learning_rate, 'linear', flatten6)
+        flatten6.next_layers = [inter15]
+        self.trainable_layers.append(inter15)
+        dense11 = DensePCNLayer(90931, learning_rate, 'relu', inter15)
+        inter15.next_layers = [dense11]
         self.trainable_layers.append(dense11)
-        dense12 = DensePCNLayer(345871, learning_rate, 'linear', dense11, share_state_layer=dense10)
-        dense11.next_layers = [dense12]
+        inter16 = DensePCNLayer(100, learning_rate, 'linear', dense11)
+        dense11.next_layers = [inter16]
+        self.trainable_layers.append(inter16)
+        dense12 = DensePCNLayer(345871, learning_rate, 'linear', inter16, share_state_layer=dense10)
+        inter16.next_layers = [dense12]
         self.trainable_layers.append(dense12)
 
         flatten8 = FlattenPCNLayer(transformer6_layers[-1])
         transformer6_layers[-1].next_layers.append(flatten8)
-        dense15 = DensePCNLayer(185795, learning_rate, 'relu', flatten8)
-        flatten8.next_layers = [dense15]
+        inter17 = DensePCNLayer(100, learning_rate, 'linear', flatten8)
+        flatten8.next_layers = [inter17]
+        self.trainable_layers.append(inter17)
+        dense15 = DensePCNLayer(185795, learning_rate, 'relu', inter17)
+        inter17.next_layers = [dense15]
         self.trainable_layers.append(dense15)
-        dense16 = DensePCNLayer(702332, learning_rate, 'linear', dense15, share_state_layer=dense14)
-        dense15.next_layers = [dense16]
+        inter18 = DensePCNLayer(100, learning_rate, 'linear', dense15)
+        dense15.next_layers = [inter18]
+        self.trainable_layers.append(inter18)
+        dense16 = DensePCNLayer(702332, learning_rate, 'linear', inter18, share_state_layer=dense14)
+        inter18.next_layers = [dense16]
         self.trainable_layers.append(dense16)
 
         flatten10 = FlattenPCNLayer(transformer3_layers[-1])
         transformer3_layers[-1].next_layers.append(flatten10)
-        dense19 = DensePCNLayer(373555, learning_rate, 'relu', flatten10)
-        flatten10.next_layers = [dense19]
+        inter19 = DensePCNLayer(100, learning_rate, 'linear', flatten10)
+        flatten10.next_layers = [inter19]
+        self.trainable_layers.append(inter19)
+        dense19 = DensePCNLayer(373555, learning_rate, 'relu', inter19)
+        inter19.next_layers = [dense19]
         self.trainable_layers.append(dense19)
-        dense20 = DensePCNLayer(1429912, learning_rate, 'linear', dense19, share_state_layer=dense18)
-        dense19.next_layers = [dense20]
+        inter20 = DensePCNLayer(100, learning_rate, 'linear', dense19)
+        dense19.next_layers = [inter20]
+        self.trainable_layers.append(inter20)
+        dense20 = DensePCNLayer(1429912, learning_rate, 'linear', inter20, share_state_layer=dense18)
+        inter20.next_layers = [dense20]
         self.trainable_layers.append(dense20)
 
     def pass_next(self, prev_layer, layer):
