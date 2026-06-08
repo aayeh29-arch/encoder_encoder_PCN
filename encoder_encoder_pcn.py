@@ -67,8 +67,7 @@ class TransposePCNLayer:
         self.output_shape = None
 
     def __call__(self, x:tf.Tensor):
-        self.output_shape = x.shape
-        self.output_shape[-1], self.output_shape[-2] = self.output_shape[-2], self.output_shape[-1]
+        self.output_shape = (*x.shape[:-2], x.shape[-1], x.shape[-2])
         return tf.transpose(x, perm = list(range(tf.rank(x)-2))+[tf.rank(x)-1, tf.rank(x)-2])
     
     def predict_next(self):
@@ -77,6 +76,36 @@ class TransposePCNLayer:
     # assume 1 next layer
     def predict_prev(self):
         return self(self.next_layers[0].predict_prev())
+    
+    def pred_loss_d_input(self):
+        return 1.
+
+class FlattenPCNLayer:
+    is_clamped : tf.Variable # bool
+    fix_wts_b : tf.Variable # bool
+    prev_layer : object
+    next_layers: list
+    output_shape : tuple
+    input_shape : tuple
+    def __init__(self, prev_layer:object, next_layers:list=None):
+        self.is_clamped = tf.Variable(False, trainable=False)
+        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.prev_layer = prev_layer
+        self.next_layers = [] if next_layers is None else next_layers
+        self.output_shape = None
+        self.input_shape = None
+
+    def __call__(self, x:tf.Tensor):
+        self.output_shape = (x.shape[0], -1)
+        self.input_shape = x.shape
+        return tf.reshape(x, (x.shape[0], -1))
+    
+    def predict_next(self):
+        return self(self.prev_layer.predict_next())
+    
+    # assume 1 next layer
+    def predict_prev(self):
+        return tf.reshape(self.next_layers[0].predict_prev(), self.input_shape)
     
     def pred_loss_d_input(self):
         return 1.
@@ -126,6 +155,53 @@ class EncoderEncoderPCN:
         conv9 = Conv2DPCNLayer(1024, (3, 3), learning_rate, 'relu', mp4)
         self.trainable_layers.append(conv9)
         mp4.next_layers = [conv9]
+
+        flatten1 = FlattenPCNLayer(conv9)
+        conv9.next_layers = [flatten1]
+        dense1 = DensePCNLayer(307200, learning_rate, 'relu', flatten1)
+        flatten1.next_layers = [dense1]
+        self.trainable_layers.append(dense1)
+        dense2 = DensePCNLayer(102400, learning_rate, 'linear', dense1)
+        dense1.next_layers = [dense2]
+        self.trainable_layers.append(dense2)
+
+        flatten3 = FlattenPCNLayer(conv8)
+        conv8.next_layers.append(flatten3)
+        dense5 = DensePCNLayer(582542, learning_rate, 'relu', flatten3)
+        flatten3.next_layers = [dense5]
+        self.trainable_layers.append(dense5)
+        dense6 = DensePCNLayer(161817, learning_rate, 'linear', dense5)
+        dense5.next_layers = [dense6]
+        self.trainable_layers.append(dense6)
+
+        flatten5 = FlattenPCNLayer(conv6)
+        conv6.next_layers.append(flatten5)
+        dense9 = DensePCNLayer(1279723, learning_rate, 'relu', flatten5)
+        flatten5.next_layers = [dense9]
+        self.trainable_layers.append(dense9)
+        dense10 = DensePCNLayer(345871, learning_rate, 'linear', dense9)
+        dense9.next_layers = [dense10]
+        self.trainable_layers.append(dense10)
+
+        flatten7 = FlattenPCNLayer(conv4)
+        conv4.next_layers.append(flatten7)
+        dense13 = DensePCNLayer(2654815, learning_rate, 'relu', flatten7)
+        flatten7.next_layers = [dense13]
+        self.trainable_layers.append(dense13)
+        dense14 = DensePCNLayer(702332, learning_rate, 'linear', dense13)
+        dense13.next_layers = [dense14]
+        self.trainable_layers.append(dense14)
+
+        flatten9 = FlattenPCNLayer(conv2)
+        conv2.next_layers.append(flatten9)
+        dense17 = DensePCNLayer(5433667, learning_rate, 'relu', flatten9)
+        flatten9.next_layers = [dense17]
+        self.trainable_layers.append(dense17)
+        dense18 = DensePCNLayer(1429912, learning_rate, 'linear', dense17)
+        dense17.next_layers = [dense18]
+        self.trainable_layers.append(dense18)
+
+
 
         self.txt_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.txt_input)
@@ -240,12 +316,57 @@ class EncoderEncoderPCN:
         self.trainable_layers[-1].next_layers = [transformer17_layers[0]]
         self.trainable_layers += transformer17_layers
 
+        flatten2 = FlattenPCNLayer(self.trainable_layers[-1])
+        self.trainable_layers[-1].next_layers = [flatten2]
+        dense3 = DensePCNLayer(36864, learning_rate, 'relu', flatten2)
+        flatten2.next_layers = [dense3]
+        self.trainable_layers.append(dense3)
+        dense4 = DensePCNLayer(102400, learning_rate, 'relu', dense3, share_state_layer=dense2)
+        dense3.next_layers = [dense4]
+        self.trainable_layers.append(dense4)
+
+        flatten4 = FlattenPCNLayer(transformer13_layers[-1])
+        transformer13_layers[-1].next_layers.append(flatten4)
+        dense7 = DensePCNLayer(44237, learning_rate, 'relu', flatten4)
+        flatten4.next_layers = [dense7]
+        self.trainable_layers.append(dense7)
+        dense8 = DensePCNLayer(161817, learning_rate, 'linear', dense7, share_state_layer=dense6)
+        dense7.next_layers = [dense8]
+        self.trainable_layers.append(dense8)
+
+        flatten6 = FlattenPCNLayer(transformer9_layers[-1])
+        transformer9_layers[-1].next_layers.append(flatten6)
+        dense11 = DensePCNLayer(90931, learning_rate, 'relu', flatten6)
+        flatten6.next_layers = [dense11]
+        self.trainable_layers.append(dense11)
+        dense12 = DensePCNLayer(345871, learning_rate, 'linear', dense11, share_state_layer=dense10)
+        dense11.next_layers = [dense12]
+        self.trainable_layers.append(dense12)
+
+        flatten8 = FlattenPCNLayer(transformer6_layers[-1])
+        transformer6_layers[-1].next_layers.append(flatten8)
+        dense15 = DensePCNLayer(185795, learning_rate, 'relu', flatten8)
+        flatten8.next_layers = [dense15]
+        self.trainable_layers.append(dense15)
+        dense16 = DensePCNLayer(702332, learning_rate, 'linear', dense15, share_state_layer=dense14)
+        dense15.next_layers = [dense16]
+        self.trainable_layers.append(dense16)
+
+        flatten10 = FlattenPCNLayer(transformer3_layers[-1])
+        transformer3_layers[-1].next_layers.append(flatten10)
+        dense19 = DensePCNLayer(373555, learning_rate, 'relu', flatten10)
+        flatten10.next_layers = [dense19]
+        self.trainable_layers.append(dense19)
+        dense20 = DensePCNLayer(1429912, learning_rate, 'linear', dense19, share_state_layer=dense18)
+        dense19.next_layers = [dense20]
+        self.trainable_layers.append(dense20)
+
     def pass_next(self, prev_layer, layer):
         if isinstance(layer, AddNormalizePCNLayer):
             new_output = layer(layer.prev_layers[0].predict_next(), layer.prev_layers[1].predict_next())
         else:
             new_output = layer(prev_layer.predict_next())
-        if layer.next_layers is not None:
+        if layer.next_layers != []:
             for next_layer in layer.next_layers:
                 self.pass_next(layer, next_layer)
         else:

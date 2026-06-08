@@ -160,6 +160,7 @@ class MaxPool2DPCNLayer:
     prev_layer : object
     next_layers : list
     kernel_size : tuple[int, int]
+    output_shape : tuple
     def __init__(self, kernel_size: tuple[int, int],  prev_layer:object, next_layers:list=None):
         self.is_clamped = tf.Variable(True, trainable=False)
         self.fix_wts_b = tf.Variable(True, trainable=False)
@@ -169,7 +170,7 @@ class MaxPool2DPCNLayer:
         self.output_shape = None
 
     def __call__(self, x:tf.Tensor):
-        out = tf.nn.max_pool2d(x, self.kernel_size, 1, 'VALID')
+        out = tf.nn.max_pool2d(x, self.kernel_size, self.kernel_size[0], 'VALID')
         self.output_shape = out.shape
         return out
     

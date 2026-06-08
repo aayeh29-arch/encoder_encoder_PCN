@@ -12,7 +12,9 @@ class DensePCNLayer:
     activation : str
     state : tf.Variable # tf.Tensor
     learning_rate:float
-    def __init__(self, num_units:int, learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None):
+    share_wts_layer : object
+    share_state_layer : object
+    def __init__(self, num_units:int, learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None, share_state_layer:object=None):
         self.is_clamped = tf.Variable(False, trainable=False)
         self.fix_wts_b = tf.Variable(False, trainable=False)
         self.num_units = num_units
@@ -24,6 +26,7 @@ class DensePCNLayer:
         self.state = None
         self.activation = activation
         self.learning_rate = learning_rate
+        self.share_state_layer = share_state_layer
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -166,7 +169,10 @@ class DensePCNLayer:
             net_act = net_in
 
         if self.state is None:
-            self.state = tf.Variable(net_act, trainable=False)
+            if self.share_state_layer is not None:
+                self.state = self.share_state_layer.state
+            else:
+                self.state = tf.Variable(net_act, trainable=False)
             self.output_shape = net_act.shape
         return net_act
 

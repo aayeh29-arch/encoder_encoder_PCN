@@ -146,7 +146,7 @@ class TransformerPCNLayer:
         self.attention_layer.next_layers = [self.attention_dense_layer]
         self.attention_dense_layer.next_layers = [self.attention_addnorm_layer]
         self.attention_addnorm_layer.next_layers = [self.feed_forward_layers[0]]
-        for i in range(1, num_layers-1):
+        for i in range(num_layers-1):
             self.feed_forward_layers[i].next_layers = [self.feed_forward_layers[i+1]]
         self.feed_forward_layers[-1].next_layers = [self.feed_forward_addnorm_layer]
         self.feed_forward_addnorm_layer.next_layers = [] if next_layers is None else next_layers
